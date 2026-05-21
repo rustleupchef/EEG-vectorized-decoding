@@ -5,9 +5,7 @@ const path = require('path');
 
 let latestMindwaveData = {
     eeg: null,
-    attention: null,
-    meditation: null,
-    blink: null
+    time: null
 };
 
 const server = http.createServer((req, res) => {
@@ -28,15 +26,7 @@ server.listen(PORT, () => {
 const mw = new Mindwave();
 mw.on('eeg', data => {
     latestMindwaveData.eeg = data;
-});
-mw.on('attention', data => {
-    latestMindwaveData.attention = data;
-});
-mw.on('meditation', data => {
-    latestMindwaveData.meditation = data;
-});
-mw.on('blink', data => {
-    latestMindwaveData.blink = data;
+    latestMindwaveData.time = Date.now();
 });
 
 mw.connect('/dev/rfcomm0');
