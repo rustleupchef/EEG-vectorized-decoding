@@ -1,3 +1,4 @@
 server/node_modules/
 connect.sh
 input/
+__pycache__/
