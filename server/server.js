@@ -26,7 +26,6 @@ server.listen(PORT, () => {
 const mw = new Mindwave();
 mw.on('eeg', data => {
     latestMindwaveData.eeg = data;
-    latestMindwaveData.time = Date.now();
 });
 
 mw.connect('/dev/rfcomm0');
