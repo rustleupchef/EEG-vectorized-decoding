@@ -1,5 +1,6 @@
 import requests
 import sys
+import uuid
 import time
 from time import sleep
 from threading import Thread
@@ -77,10 +78,11 @@ def main(arguments = []):
     print("Recording audio...")
     audio = sd.rec(int(duration * 44100), samplerate=44100, channels=2, dtype='int16')
     sd.wait()
-    wavfile.write(os.path.join(input_dir, 'audio.wav'), 44100, audio)
+    audio_file = os.path.join(input_dir, f'{uuid.uuid4()}.wav')
+    wavfile.write(audio_file, 44100, audio)
+    print("Audio recorded successfully")
 
     print("Transcribing audio...")
-    audio_file = os.path.join(input_dir, 'audio.wav')
     model = whisper.load_model("base")
     result = model.transcribe(audio_file, word_timestamps=True)
     print("Audio transcribed successfully")
@@ -98,10 +100,8 @@ def main(arguments = []):
 
     paired = pair_eeg_with_transcription(data, transcription)
 
-    with open(os.path.join(input_dir, 'paired.json'), 'w') as f:
+    with open(os.path.join(input_dir, f'{uuid.uuid4()}.json'), 'w') as f:
         json.dump(paired, f, indent=4)
-
-    
 
 if __name__ == "__main__":
     main(sys.argv[1:])
