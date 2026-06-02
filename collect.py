@@ -9,9 +9,13 @@ import os
 from scipy.io import wavfile
 import sounddevice as sd
 import whisper
+import webbrowser
+from urllib.parse import urlencode
 from sentence_transformers import SentenceTransformer
 
-END_POINT = "http://localhost:3000/mindwave/data"
+BASE_URL = "http://localhost:3000"
+END_POINT = f"{BASE_URL}/mindwave/data"
+COLLECT_URL = f"{BASE_URL}/collect"
 MODEL = SentenceTransformer('all-MiniLM-L6-v2')
 
 start = None
@@ -67,13 +71,23 @@ def collect_data(duration, delay):
 def main(arguments = []):
     duration = int(arguments[0]) if len(arguments) > 0 else 20
     delay = float(arguments[1]) if len(arguments) > 1 else .1
+    text = arguments[2] if len(arguments) > 2 else 'The quick brown fox jumps over the lazy dog'
 
     input_dir = 'input'
     if not os.path.exists(input_dir):
         os.makedirs(input_dir)
+
+    params = {
+        'text': text,
+        'duration': duration,
+        'delay': delay
+    }
+    collect_url = f"{COLLECT_URL}?{urlencode(params)}"
+    webbrowser.open(collect_url)
     
     eeg_thread = Thread(target=collect_data, args=(duration, delay))
     eeg_thread.start()
+    print("EEG data collection started")
 
     print("Recording audio...")
     audio = sd.rec(int(duration * 44100), samplerate=44100, channels=2, dtype='int16')
