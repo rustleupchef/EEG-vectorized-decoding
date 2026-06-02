@@ -9,9 +9,24 @@ let latestMindwaveData = {
 };
 
 const server = http.createServer((req, res) => {
-    if (req.url === '/mindwave/data' && req.method === 'GET') {
+    const url = new URL(req.url, 'http://localhost:3000');
+    const pathname = url.pathname;
+    const method = req.method;
+    
+    if (pathname === '/mindwave/data' && method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(latestMindwaveData));
+    } else if (pathname === '/collect' && method === 'GET') {
+        const filePath = path.join(__dirname, 'html', 'collect.html');
+        fs.readFile(filePath, 'utf8', (err, data) => {
+            if (err) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'error', message: 'Failed to load page' }));
+                return;
+            }
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(data);
+        });
     } else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'error', message: 'Not Found' }));
