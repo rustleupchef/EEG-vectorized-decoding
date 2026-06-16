@@ -12,6 +12,7 @@ import whisper
 import webbrowser
 from urllib.parse import urlencode
 from sentence_transformers import SentenceTransformer
+from simple_term_menu import TerminalMenu
 
 BASE_URL = "http://localhost:3000"
 END_POINT = f"{BASE_URL}/mindwave/data"
@@ -68,10 +69,36 @@ def collect_data(duration, delay):
             sleep(delay)
         data.append(packet)
 
+
+def grabText():
+    TEXTS_DIR = 'texts'
+    
+    if not os.path.isdir(TEXTS_DIR):
+        os.makedirs(TEXTS_DIR)
+
+    files = sorted(
+        name for name in os.listdir(TEXTS_DIR)
+        if os.path.isfile(os.path.join(TEXTS_DIR, name))
+    )
+    if not files:
+        sys.exit(f"No text files found in '{TEXTS_DIR}/'. Add files and try again.")
+
+    menu = TerminalMenu(
+        files,
+        title="Select a text file (↑/↓ to move, Enter to confirm):",
+    )
+    choice = menu.show()
+    if choice is None:
+        sys.exit("No file selected.")
+
+    with open(os.path.join(TEXTS_DIR, files[choice]), 'r') as f:
+        return f.read()
+
 def main(arguments = []):
     duration = int(arguments[0]) if len(arguments) > 0 else 20
     delay = float(arguments[1]) if len(arguments) > 1 else .1
-    text = arguments[2] if len(arguments) > 2 else 'The quick brown fox jumps over the lazy dog'
+    text = arguments[2] if len(arguments) > 2 else grabText()
+
 
     input_dir = 'input'
     if not os.path.exists(input_dir):
