@@ -28,6 +28,7 @@
             #text-display {
                 flex: 1;
                 display: flex;
+                flex-direction: column;
                 align-items: center;
                 justify-content: center;
                 padding: 2rem;
@@ -38,10 +39,11 @@
                 margin: 0 auto;
             }
         </style>
+        <script type="module" src="https://md-block.verou.me/md-block.js"></script>
     </head>
     <body>
         <div id="timer">--:--</div>
-        <div id="text-display"></div>
+        <md-block id="text-display"></md-block>
 
         <script>
             const params = new URLSearchParams(window.location.search);
