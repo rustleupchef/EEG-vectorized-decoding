@@ -3,10 +3,10 @@ from simple_term_menu import TerminalMenu
 from bs4 import BeautifulSoup
 import os
 
-def grabOption(name = "Select Option", options = []):
+def grabOption(name = "Select an Option", options = []):
     menu = TerminalMenu(
         options,
-        title="Select a text file (↑/↓ to move, Enter to confirm):",
+        title=f"{name} (↑/↓ to move, Enter to confirm):",
     )
     choice = menu.show()
     return options[choice]
