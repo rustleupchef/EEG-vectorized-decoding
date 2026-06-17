@@ -75,6 +75,8 @@ def grabText():
     
     if not os.path.isdir(TEXTS_DIR):
         os.makedirs(TEXTS_DIR)
+        print("Folder doesn't exist")
+        return "This quick brown fox jumps over the lazy dog"
 
     files = sorted(
         name for name in os.listdir(TEXTS_DIR)
