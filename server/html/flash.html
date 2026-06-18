@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Collect Data</title>
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                min-height: 100vh;
+                font-family: system-ui, -apple-system, sans-serif;
+                display: flex;
+                flex-direction: column;
+            }
+
+            #timer {
+                padding: 1rem 1.5rem;
+                font-size: 1.5rem;
+                font-weight: 600;
+                text-align: center;
+                background: #1a1a2e;
+                color: #eee;
+                border-bottom: 2px solid #16213e;
+            }
+
+            #text-display {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 2rem;
+                font-size: 1.75rem;
+                line-height: 1.6;
+                text-align: center;
+                max-width: 48rem;
+                margin: 0 auto;
+            }
+        </style>
+        <script type="module" src="https://md-block.verou.me/md-block.js"></script>
+    </head>
+    <body>
+        <div id="timer">--:--</div>
+        <md-block id="text-display"></md-block>
+
+        <script>
+            let index = 0;
+            const params = new URLSearchParams(window.location.search);
+            const words = JSON.parse(params.get('words').replace(/'/g, '"')) ?? new Array();
+
+            const duration = parseInt(params.get('duration') ?? '20', 10);
+            const delay = parseFloat(params.get('delay') ?? '0');
+
+            const timerEl = document.getElementById('timer');
+            const textEl = document.getElementById('text-display');
+            textEl.textContent = words[index];
+            
+
+            function formatTime(seconds) {
+                const m = Math.floor(seconds / 60);
+                const s = Math.floor(seconds % 60);
+                return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            }
+
+            function startTimer() {
+                const endTime = Date.now() + duration * 1000;
+                setInterval(() => {
+                    index = (index + 1) % words.length;
+                    textEl.textContent = words[index];
+                }, 1000);
+
+                function tick() {
+                    const remaining = Math.max(0, (endTime - Date.now()) / 1000);
+                    timerEl.textContent = formatTime(remaining);
+                    if (remaining > 0) {
+                        requestAnimationFrame(tick);
+                    }
+                }
+
+                tick();
+            }
+
+            if (delay > 0) {
+                timerEl.textContent = formatTime(delay);
+                let delayRemaining = delay;
+                const delayInterval = setInterval(() => {
+                    delayRemaining -= 1;
+                    timerEl.textContent = formatTime(delayRemaining);
+                    if (delayRemaining <= 0) {
+                        clearInterval(delayInterval);
+                        startTimer();
+                    }
+                }, 1000);
+            } else {
+                startTimer();
+            }
+        </script>
+    </body>
+</html>
