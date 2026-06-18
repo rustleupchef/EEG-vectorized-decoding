@@ -67,8 +67,11 @@
             function startTimer() {
                 const endTime = Date.now() + duration * 1000;
                 setInterval(() => {
-                    index = (index + 1) % words.length;
-                    textEl.textContent = words[index];
+                    const remaining = Math.max(0, (endTime - Date.now()) / 1000);
+                    if (remaining > 0) {
+                        index = (index + 1) % words.length;
+                        textEl.textContent = words[index];
+                    }
                 }, 1000);
 
                 function tick() {
