@@ -134,6 +134,34 @@ def grabText():
     with open(os.path.join(TEXTS_DIR, files[choice]), 'r') as f:
         return f.read()
 
+def grabDesire():
+    options = ["manualy", "computationaly"]
+
+    menu = TerminalMenu(
+        options,
+        title = "Select your desired way of selecting words (↑/↓ to move, Enter to confirm):"
+    )
+
+    return menu.show()
+
+def selectWords(words, depth, duration):
+    selected = []
+    for i in range(depth):
+        menu = TerminalMenu(
+            words,
+            title = f"Words Selected - {i}/{depth}\tSelect your next word (↑/↓ to move, Enter to confirm):"
+        )
+
+        choice = menu.show()
+        selected.append(words[choice])
+        del words[choice]
+    
+    words_list = []
+    for i in range(duration):
+        words_list.append(selected[i % len(selected)])
+
+    return words_list
+
 def get_intensitys(words, depth, duration):
     embeddings = MODEL.encode(words, convert_to_numpy=True)
     
@@ -174,7 +202,8 @@ def main(arguments = []):
     if mode == "flash":
         name = "words"
         words = "\n".join([line for line in text.split("\n") if not line.strip().startswith('#')])
-        words = get_intensitys(re.findall(r'\b[a-zA-Z0-9\']+\b', words), 5, duration)
+        words = re.findall(r'\b[a-zA-Z0-9\']+\b', words)
+        words = get_intensitys(words, 5, duration) if bool(grabDesire()) else selectWords(words, 5, duration)
 
     params = {
         name: words,
