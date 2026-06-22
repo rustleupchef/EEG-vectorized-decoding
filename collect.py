@@ -193,7 +193,7 @@ def main(arguments = []):
     text = arguments[2] if len(arguments) > 2 else grabText()
     mode = arguments[3] if len(arguments) > 3 and mode in ["flash", "passage"] else grabMode()
 
-    input_dir = 'input'
+    input_dir = 'input/samples'
     if not os.path.exists(input_dir):
         os.makedirs(input_dir)
     
