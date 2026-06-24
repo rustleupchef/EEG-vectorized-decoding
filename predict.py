@@ -135,6 +135,8 @@ def grab_eeg_data():
 
 def main(arguments = []):
     delay = float(arguments[0]) if len(arguments) > 0 else .1
+    model, ckpt = load_model(save_path = "output/model.pt")
+
     start = time.time()
     while True:
         packet = []
@@ -143,6 +145,8 @@ def main(arguments = []):
             raw_eeg_data['time'] = time.time() - start
             packet.append(raw_eeg_data)
             sleep(delay)
+        print(predict(model, packet, ckpt["norm_stats"]))
+        
 
 if __name__ == "__main__":
     main(sys.argv[1:])
