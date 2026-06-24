@@ -1,46 +1,152 @@
+"""
+EEG-to-Text Embedding Model
+============================
+Data format (train.json / test.json):
+  List of samples, each with:
+    input:  list of 10 x {
+                time: float,
+                eeg:  {delta, theta, loAlpha, hiAlpha, loBeta, hiBeta, loGamma, midGamma}
+                      (raw power-spectral-density integers, order of magnitude ~1e6–1e7)
+                      OR null (handled with zeros)
+            }
+    output: {text: str, time: [start, end], dimensions: 384, embedding: [384 floats]}
+
+Task: Given a 10-step EEG band-power sequence (~103 ms/step), predict the
+      384-dimensional sentence embedding of the text being read.
+
+Architecture: BiLSTM encoder → LayerNorm → Linear head (→ 384 dims)
+Loss:         MSE + cosine-similarity loss (balanced 50/50)
+
+EEG normalisation:
+  Step 1 – log1p: compresses million-scale PSD values to ~[14, 16]
+  Step 2 – per-channel z-score over the training set: zero-mean, unit-variance
+"""
+
 import json
 import math
 import os
 import sys
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
-class EEGDataset(Dataset):
-    """Load EEG sequences and target sentence embeddings from a JSON file."""
 
-    def __init__(self, json_path: str):
+# Canonical EEG band order (low → high frequency)
+EEG_BANDS = ["delta", "theta", "loAlpha", "hiAlpha", "loBeta", "hiBeta", "loGamma", "midGamma"]
+
+
+# ─── 1. Dataset ──────────────────────────────────────────────────────────────
+
+class EEGDataset(Dataset):
+    """
+    Load EEG band-power sequences and target sentence embeddings from a JSON file.
+
+    EEG normalisation pipeline (fitted on THIS dataset):
+      1. log1p  – compresses million-scale PSD integers to a tighter range
+      2. z-score – per-band mean/std computed from all timesteps in this file
+    """
+
+    def __init__(self, json_path: str, norm_stats: dict | None = None):
+        """
+        Args:
+            json_path:   Path to train.json or test.json.
+            norm_stats:  If provided (dict with keys 'time_mean', 'time_std',
+                         'eeg_mean', 'eeg_std'), use these instead of computing
+                         from this file.  Pass the training stats when loading
+                         test data so both sets are on the same scale.
+        """
         with open(json_path) as f:
             raw = json.load(f)
 
-        # Detect EEG channel count from the first non-null value
-        self.eeg_channels = self._detect_eeg_channels(raw)
-        self.samples = raw
-        self.feature_dim = 1 + self.eeg_channels  # time + eeg
+        self.samples    = raw
+        self.eeg_bands  = EEG_BANDS
+        self.eeg_channels = len(EEG_BANDS)            # always 8
+        self.feature_dim  = 1 + self.eeg_channels     # time + 8 bands = 9
 
-        # Normalise timestamps: subtract global mean, divide by std
-        all_times = [item["time"] for s in raw for item in s["input"]]
-        self.time_mean = sum(all_times) / len(all_times)
-        variance = sum((t - self.time_mean) ** 2 for t in all_times) / len(all_times)
-        self.time_std = math.sqrt(variance) or 1.0
+        # ── Fit normalisation stats (or inherit from training set) ──────────
+        if norm_stats is not None:
+            self.time_mean = norm_stats["time_mean"]
+            self.time_std  = norm_stats["time_std"]
+            self.eeg_mean  = norm_stats["eeg_mean"]   # list[8]
+            self.eeg_std   = norm_stats["eeg_std"]    # list[8]
+        else:
+            self._fit_norm_stats(raw)
 
-        print(f"[Dataset] {json_path}: {len(raw)} samples, "
-              f"seq_len=10, EEG channels={self.eeg_channels}, "
+        has_eeg = self._has_eeg(raw)
+        print(f"[Dataset] {json_path}: {len(raw)} samples | "
+              f"seq_len=10 | EEG={'8 bands' if has_eeg else 'null→zeros'} | "
               f"feature_dim={self.feature_dim}")
 
+    # ── Helpers ──────────────────────────────────────────────────────────────
+
     @staticmethod
-    def _detect_eeg_channels(raw):
+    def _has_eeg(raw) -> bool:
+        for s in raw:
+            for item in s["input"]:
+                if isinstance(item.get("eeg"), dict):
+                    return True
+        return False
+
+    def _fit_norm_stats(self, raw):
+        """Compute time z-score params and per-band log1p z-score params."""
+        all_times = [item["time"] for s in raw for item in s["input"]]
+        self.time_mean = sum(all_times) / len(all_times)
+        self.time_std  = math.sqrt(
+            sum((t - self.time_mean) ** 2 for t in all_times) / len(all_times)
+        ) or 1.0
+
+        # Collect log1p band values per band
+        band_vals = {b: [] for b in EEG_BANDS}
         for s in raw:
             for item in s["input"]:
                 eeg = item.get("eeg")
-                if eeg is None:
-                    continue
-                if isinstance(eeg, list):
-                    return len(eeg)
-                return 1  # scalar
-        return 0  # all null → time-only mode
+                if isinstance(eeg, dict):
+                    for b in EEG_BANDS:
+                        v = eeg.get(b, 0.0) or 0.0
+                        band_vals[b].append(math.log1p(float(v)))
+
+        # Per-band mean & std (fallback to 0/1 if no EEG data)
+        self.eeg_mean = []
+        self.eeg_std  = []
+        for b in EEG_BANDS:
+            vals = band_vals[b]
+            if vals:
+                mu  = sum(vals) / len(vals)
+                std = math.sqrt(sum((v - mu) ** 2 for v in vals) / len(vals)) or 1.0
+            else:
+                mu, std = 0.0, 1.0
+            self.eeg_mean.append(mu)
+            self.eeg_std.append(std)
+
+    def norm_stats(self) -> dict:
+        """Return serialisable stats dict — pass to test EEGDataset."""
+        return {
+            "time_mean": self.time_mean,
+            "time_std":  self.time_std,
+            "eeg_mean":  self.eeg_mean,
+            "eeg_std":   self.eeg_std,
+        }
+
+    def _extract_eeg(self, eeg_field) -> list:
+        """
+        Extract 8 normalised band values from an EEG dict (or return zeros).
+        Pipeline: raw → log1p → z-score
+        """
+        if not isinstance(eeg_field, dict):
+            return [0.0] * self.eeg_channels
+
+        vals = []
+        for i, b in enumerate(EEG_BANDS):
+            raw_val = eeg_field.get(b, 0.0) or 0.0
+            log_val = math.log1p(float(raw_val))
+            normed  = (log_val - self.eeg_mean[i]) / self.eeg_std[i]
+            vals.append(normed)
+        return vals
+
+    # ── PyTorch interface ─────────────────────────────────────────────────────
 
     def __len__(self):
         return len(self.samples)
@@ -48,21 +154,14 @@ class EEGDataset(Dataset):
     def __getitem__(self, idx):
         sample = self.samples[idx]
 
-        # Build feature matrix [seq_len, feature_dim]
         rows = []
         for item in sample["input"]:
-            t = (item["time"] - self.time_mean) / self.time_std  # normalised time
-            eeg = item.get("eeg")
-            if eeg is None:
-                eeg_vals = [0.0] * self.eeg_channels
-            elif isinstance(eeg, list):
-                eeg_vals = [float(v) for v in eeg]
-            else:
-                eeg_vals = [float(eeg)]
-            rows.append([t] + eeg_vals)
+            t_norm  = (item["time"] - self.time_mean) / self.time_std
+            eeg_vals = self._extract_eeg(item.get("eeg"))
+            rows.append([t_norm] + eeg_vals)
 
-        x = torch.tensor(rows, dtype=torch.float32)                          # [10, feature_dim]
-        y = torch.tensor(sample["output"]["embedding"], dtype=torch.float32)  # [384]
+        x    = torch.tensor(rows, dtype=torch.float32)                          # [10, 9]
+        y    = torch.tensor(sample["output"]["embedding"], dtype=torch.float32)  # [384]
         text = sample["output"]["text"]
         return x, y, text
 
@@ -161,7 +260,8 @@ def train(
 
     has_test = os.path.exists(test_path)
     if has_test:
-        test_ds = EEGDataset(test_path)
+        # ⚠️  Always use TRAINING norm stats for test data — prevents data leakage
+        test_ds = EEGDataset(test_path, norm_stats=train_ds.norm_stats())
         test_loader = DataLoader(
             test_ds, batch_size=min(batch_size, len(test_ds)),
             shuffle=False, drop_last=False,
@@ -222,8 +322,9 @@ def train(
                     "hidden_dim": hidden_dim,
                     "num_layers": num_layers,
                     "dropout": dropout,
-                    "time_mean": train_ds.time_mean,
-                    "time_std": train_ds.time_std,
+                    # Normalisation stats (needed for inference)
+                    "norm_stats": train_ds.norm_stats(),
+                    "eeg_bands": train_ds.eeg_bands,
                     "eeg_channels": train_ds.eeg_channels,
                     # Store all training texts + embeddings for retrieval
                     "train_texts": [s["output"]["text"] for s in train_ds.samples],
@@ -336,6 +437,7 @@ def main():
 
     proportion = .7
     point = int(len(samples) * proportion)
+    print(f"{len(samples)=} {point=}")
 
     train_samples = samples[:point]
     train_file = os.path.join(train_dir, "train.json")
