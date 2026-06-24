@@ -4,3 +4,4 @@ input/
 __pycache__/
 texts/
 output/
+wiki_vectors_db

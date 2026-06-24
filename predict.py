@@ -6,6 +6,7 @@ import sys
 import time
 from time import sleep
 import requests
+import lancedb
 
 EEG_BANDS = ["delta", "theta", "loAlpha", "hiAlpha", "loBeta", "hiBeta", "loGamma", "midGamma"]
 BASE_URL = "http://localhost:3000"
@@ -136,6 +137,8 @@ def grab_eeg_data():
 def main(arguments = []):
     delay = float(arguments[0]) if len(arguments) > 0 else .1
     model, ckpt = load_model(save_path = "output/model.pt")
+    db = lancedb.connect("./wiki_vectors_db")
+    table = db.open_table("wikipedia")
 
     start = time.time()
     while True:
@@ -145,7 +148,20 @@ def main(arguments = []):
             raw_eeg_data['time'] = time.time() - start
             packet.append(raw_eeg_data)
             sleep(delay)
-        print(predict(model, packet, ckpt["norm_stats"]))
+        vector = predict(model, packet, ckpt["norm_stats"]).detach().cpu().numpy().flatten()
+        results = (
+        table.search(vector)
+            .metric("cosine") 
+            .limit(3)                 # Get the top 3 closest topic matches
+            .select(["title", "text"]) # Only return text and title metadata
+            .to_list()
+        )
+
+        # 4. Print the text results
+        for i, match in enumerate(results):
+            print(f"\nMatch #{i+1} [Distance Score: {round(match['_distance'], 4)}]")
+            print(f"Wikipedia Topic: {match['title']}")
+            print(f"Extracted Text: {match['text']}\n" + "-"*40)
         
 
 if __name__ == "__main__":
