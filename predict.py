@@ -2,9 +2,14 @@ import torch
 import torch
 import torch.nn as nn
 import math
+import sys
+import time
+from time import sleep
+import requests
 
 EEG_BANDS = ["delta", "theta", "loAlpha", "hiAlpha", "loBeta", "hiBeta", "loGamma", "midGamma"]
-
+BASE_URL = "http://localhost:3000"
+END_POINT = f"{BASE_URL}/mindwave/data"
 
 class EEGToEmbedding(nn.Module):
     """
@@ -124,8 +129,20 @@ def predict(model, eeg_sequence: list, norm_stats: dict,
     with torch.no_grad():
         return model(x)[0]                        # [384]
 
-def main():
-    pass
+def grab_eeg_data():
+    response  = requests.get(END_POINT).json()
+    return response
+
+def main(arguments = []):
+    delay = float(arguments[0]) if len(arguments) > 0 else .1
+    start = time.time()
+    while True:
+        packet = []
+        for i in range(int(1/delay)):
+            raw_eeg_data = grab_eeg_data()
+            raw_eeg_data['time'] = time.time() - start
+            packet.append(raw_eeg_data)
+            sleep(delay)
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
