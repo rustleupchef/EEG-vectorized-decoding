@@ -16,19 +16,8 @@ const server = http.createServer((req, res) => {
     if (pathname === '/mindwave/data' && method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(latestMindwaveData));
-    } else if (pathname === '/collect/passage' && method === 'GET') {
-        const filePath = path.join(__dirname, 'html', 'passage.html');
-        fs.readFile(filePath, 'utf8', (err, data) => {
-            if (err) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'error', message: 'Failed to load page' }));
-                return;
-            }
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(data);
-        });
-    } else if (pathname === "/collect/flash" && method === 'GET') {
-        const filePath = path.join(__dirname, 'html', 'flash.html');
+    } else if (pathname === '/collect' && method === 'GET') {
+        const filePath = path.join(__dirname, 'html', 'display.html');
         fs.readFile(filePath, 'utf8', (err, data) => {
             if (err) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
