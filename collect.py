@@ -76,16 +76,6 @@ def grabText():
     with open(os.path.join(TEXTS_DIR, files[choice]), 'r') as f:
         return f.read()
 
-def grabDesire():
-    options = ["manualy", "computationaly"]
-
-    menu = TerminalMenu(
-        options,
-        title = "Select your desired way of selecting words (↑/↓ to move, Enter to confirm):"
-    )
-
-    return menu.show()
-
 def selectWord(words):
     menu = TerminalMenu(
         words,
