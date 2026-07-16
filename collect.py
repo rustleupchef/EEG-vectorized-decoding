@@ -17,12 +17,19 @@ COLLECT_URL = f"{BASE_URL}/collect"
 MODEL = SentenceTransformer('all-MiniLM-L6-v2')
 
 data = []
+words_config: dict
 
 def pair_eeg_with_word(eeg_packets, word):
     """Map each EEG packet to words spoken during its time window."""
     paired = []
     index = 0
     embedding = MODEL.encode(word)
+
+    if word not in words_config:
+        words_config[word] = {
+            'embedding': MODEL.encode(word).tolist(),
+        }
+
     for packet in eeg_packets:
         output = {
             'text': word,
@@ -89,6 +96,13 @@ def main(arguments = []):
     delay = float(arguments[1]) if len(arguments) > 1 else .1
     text = arguments[2] if len(arguments) > 2 else grabText()
 
+    words_config_dir = "output/words_config.json"
+    if os.path.exists(words_config_dir):
+        with open(words_config_dir, 'r') as f:
+            words_config = json.load(f)
+    else:
+        words_config = {}
+
     input_dir = 'input/samples'
     if not os.path.exists(input_dir):
         os.makedirs(input_dir)
@@ -111,6 +125,9 @@ def main(arguments = []):
 
     with open(os.path.join(input_dir, f'{uuid.uuid4()}.json'), 'w') as f:
         json.dump(paired, f, indent=4)
+    
+    with open(words_config_dir, 'w') as f:
+        json.dump(words_config, f, indent=4)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
