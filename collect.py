@@ -17,7 +17,7 @@ COLLECT_URL = f"{BASE_URL}/collect"
 MODEL = SentenceTransformer('all-MiniLM-L6-v2')
 
 data = []
-words_config: dict
+words_config: dict = {}
 
 def pair_eeg_with_word(eeg_packets, word):
     """Map each EEG packet to words spoken during its time window."""
@@ -90,8 +90,15 @@ def selectWord(words):
     )
     return words[menu.show()]
 
+def continue_collecting():
+    menu = TerminalMenu(
+        ['Yes', 'No'],
+        title = f"Do you want to continue collecting data? (↑/↓ to move, Enter to confirm):"
+    )
+    return menu.show() == 0
 
 def main(arguments = []):
+    global words_config
     duration = int(arguments[0]) if len(arguments) > 0 else 20
     delay = float(arguments[1]) if len(arguments) > 1 else .1
     text = arguments[2] if len(arguments) > 2 else grabText()
@@ -107,27 +114,28 @@ def main(arguments = []):
     if not os.path.exists(input_dir):
         os.makedirs(input_dir)
     
-    words = "\n".join([line for line in text.split("\n") if not line.strip().startswith('#')])
-    words = re.findall(r'\b[a-zA-Z0-9\']+\b', words)
-    word = selectWord(words)
+    while continue_collecting():
+        words = "\n".join([line for line in text.split("\n") if not line.strip().startswith('#')])
+        words = re.findall(r'\b[a-zA-Z0-9\']+\b', words)
+        word = selectWord(words)
 
-    params = {
-        'text': word,
-        'duration': duration,
-        'delay': 0
-    }
-    collect_url = f"{COLLECT_URL}?{urlencode(params)}"
-    webbrowser.open(collect_url)
-    
-    collect_data(duration, delay)
+        params = {
+            'text': word,
+            'duration': duration,
+            'delay': 0
+        }
+        collect_url = f"{COLLECT_URL}?{urlencode(params)}"
+        webbrowser.open(collect_url)
+        
+        collect_data(duration, delay)
 
-    paired = pair_eeg_with_word(data, word)
+        paired = pair_eeg_with_word(data, word)
 
-    with open(os.path.join(input_dir, f'{uuid.uuid4()}.json'), 'w') as f:
-        json.dump(paired, f, indent=4)
-    
-    with open(words_config_dir, 'w') as f:
-        json.dump(words_config, f, indent=4)
+        with open(os.path.join(input_dir, f'{uuid.uuid4()}.json'), 'w') as f:
+            json.dump(paired, f, indent=4)
+        
+        with open(words_config_dir, 'w') as f:
+            json.dump(words_config, f, indent=4)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
