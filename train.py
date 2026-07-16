@@ -26,6 +26,7 @@ import json
 import math
 import os
 import sys
+import random
 
 import torch
 import torch.nn as nn
@@ -436,6 +437,7 @@ def main():
 
     proportion = .7
     point = int(len(samples) * proportion)
+    random.shuffle(samples)
     print(f"{len(samples)=} {point=}")
 
     train_samples = samples[:point]
