@@ -4,9 +4,13 @@ import torch.nn as nn
 import math
 import sys
 import time
+import json
 from time import sleep
 import requests
-import lancedb
+import numpy as np
+from numpy.linalg import norm
+
+from collect import words_config
 
 EEG_BANDS = ["delta", "theta", "loAlpha", "hiAlpha", "loBeta", "hiBeta", "loGamma", "midGamma"]
 BASE_URL = "http://localhost:3000"
@@ -137,8 +141,9 @@ def grab_eeg_data():
 def main(arguments = []):
     delay = float(arguments[0]) if len(arguments) > 0 else .1
     model, ckpt = load_model(save_path = "output/model.pt")
-    db = lancedb.connect("./wiki_vectors_db")
-    table = db.open_table("wikipedia")
+    
+    with open("output/words_config.json", "r") as f:
+        words_config = json.load(f)
 
     start = time.time()
     while True:
@@ -149,20 +154,14 @@ def main(arguments = []):
             packet.append(raw_eeg_data)
             sleep(delay)
         vector = predict(model, packet, ckpt["norm_stats"]).detach().cpu().numpy().flatten()
-        results = (
-        table.search(vector)
-            .metric("cosine") 
-            .limit(3)                 # Get the top 3 closest topic matches
-            .select(["title", "text"]) # Only return text and title metadata
-            .to_list()
-        )
-
-        # 4. Print the text results
-        for i, match in enumerate(results):
-            print(f"\nMatch #{i+1} [Distance Score: {round(match['_distance'], 4)}]")
-            print(f"Wikipedia Topic: {match['title']}")
-            print(f"Extracted Text: {match['text']}\n" + "-"*40)
         
+        cosine_similarites = {}
+        for word, config in words_config.items():
+            cosine_sim = np.dot(vector, config['embedding']) / (norm(vector) * norm(config['embedding']))
+            cosine_similarites[word] = cosine_sim
+            print(f"{word=}\t{cosine_sim=}")
+        
+        print(sorted(cosine_similarites.keys(), key = cosine_similarites.get)[-1])
 
 if __name__ == "__main__":
     main(sys.argv[1:])
