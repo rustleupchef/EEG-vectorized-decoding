@@ -476,11 +476,6 @@ def main():
     save_dir = "output"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    save_file = os.path.join(save_dir, "modelVector.pt")
-    
-    save_dir = "output"
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
     save_file = os.path.join(save_dir, "modelClass.pt")
     
     train(
