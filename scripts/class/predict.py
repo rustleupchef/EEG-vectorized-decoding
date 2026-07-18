@@ -6,6 +6,7 @@ import math
 import sys
 import time
 import json
+import os
 from time import sleep
 import requests
 import numpy as np
@@ -323,19 +324,29 @@ def grab_eeg_data():
 
 def main(arguments = []):
     delay = float(arguments[0]) if len(arguments) > 0 else .1
-    model, le, ckpt = load_model(save_path = "output/model.pt")
+    model, le, ckpt = load_model(save_path = "output/modelClass.pt")
     
+    input_dir = "input"
+    test_dir = os.path.join(input_dir, "test")
+    test_file = os.path.join(test_dir, "test.json")
 
-    start = time.time()
-    while True:
-        packet = []
-        for i in range(int(1/delay)):
-            raw_eeg_data = grab_eeg_data()
-            raw_eeg_data['time'] = time.time() - start
-            packet.append(raw_eeg_data)
-            sleep(delay)
-        text, confidence, ranked = predict(model, le, packet, ckpt["norm_stats"])
-        print(text)
+    with open(test_file, "r") as f:
+        samples = json.load(f)
+    
+    count = 0
+    total = len(samples)
+    for sample in samples:
+        input_packet = sample["input"]
+        output_data = sample["output"]
+
+        text, confidence, ranked = predict(model, le, input_packet, ckpt["norm_stats"])
+
+        if text == output_data["text"]:
+            count += 1
+    
+    print(f"{count=} {total=} {count/total=}")
+    
+        
 
 if __name__ == "__main__":
     main(sys.argv[1:])
