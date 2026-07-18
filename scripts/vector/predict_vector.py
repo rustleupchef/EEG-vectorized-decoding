@@ -10,8 +10,6 @@ import requests
 import numpy as np
 from numpy.linalg import norm
 
-from collect import words_config
-
 EEG_BANDS = ["delta", "theta", "loAlpha", "hiAlpha", "loBeta", "hiBeta", "loGamma", "midGamma"]
 BASE_URL = "http://localhost:3000"
 END_POINT = f"{BASE_URL}/mindwave/data"
