@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import math
 import sys
-import time
+import os
 import json
 from time import sleep
 import requests
@@ -138,28 +138,38 @@ def grab_eeg_data():
 
 def main(arguments = []):
     delay = float(arguments[0]) if len(arguments) > 0 else .1
-    model, ckpt = load_model(save_path = "output/model.pt")
+    model, ckpt = load_model(save_path = "output/modelVector.pt")
     
     with open("output/words_config.json", "r") as f:
         words_config = json.load(f)
 
-    start = time.time()
-    while True:
-        packet = []
-        for i in range(int(1/delay)):
-            raw_eeg_data = grab_eeg_data()
-            raw_eeg_data['time'] = time.time() - start
-            packet.append(raw_eeg_data)
-            sleep(delay)
-        vector = predict(model, packet, ckpt["norm_stats"]).detach().cpu().numpy().flatten()
-        
+    input_dir = "input"
+    test_dir = os.path.join(input_dir, "test")
+    test_file = os.path.join(test_dir, "test.json")
+
+    with open(test_file, "r") as f:
+        samples = json.load(f)
+    
+    count = 0
+    total = len(samples)
+    for sample in samples:
+        input_packet = sample["input"]
+        output_data = sample["output"]
+
+        vector = predict(model, input_packet, ckpt["norm_stats"]).detach().cpu().numpy().flatten()
+                
         cosine_similarites = {}
         for word, config in words_config.items():
             cosine_sim = np.dot(vector, config['embedding']) / (norm(vector) * norm(config['embedding']))
             cosine_similarites[word] = cosine_sim
-            print(f"{word=}\t{cosine_sim=}")
+        text = sorted(cosine_similarites.keys(), key = cosine_similarites.get)[-1]
+
+        if text == output_data["text"]:
+            count += 1
+    
+    print(f"{count=} {total=} {count/total=}")
+
         
-        print(sorted(cosine_similarites.keys(), key = cosine_similarites.get)[-1])
 
 if __name__ == "__main__":
     main(sys.argv[1:])
